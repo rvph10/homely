@@ -1,0 +1,222 @@
+#!/bin/sh
+
+# 🏠 Homely Pre-push Hook
+# ========================
+# This hook runs before pushing to ensure the codebase
+# is ready for sharing with the family team
+
+# Color codes for beautiful output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Logging functions
+log_info() {
+  echo "${BLUE}ℹ️  [INFO]${NC} $1"
+}
+
+log_success() {
+  echo "${GREEN}✅ [SUCCESS]${NC} $1"
+}
+
+log_warning() {
+  echo "${YELLOW}⚠️  [WARNING]${NC} $1"
+}
+
+log_error() {
+  echo "${RED}❌ [ERROR]${NC} $1"
+}
+
+log_header() {
+  echo "${PURPLE}🏠 [HOMELY]${NC} $1"
+}
+
+# Start of pre-push process
+log_header "Starting pre-push validation..."
+echo "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# Function to run check with error handling
+run_check() {
+  local check_name="$1"
+  local command="$2"
+  local description="$3"
+  
+  log_info "Running $check_name..."
+  echo "  📋 $description"
+  
+  if eval "$command"; then
+    log_success "$check_name passed"
+    return 0
+  else
+    log_error "$check_name failed"
+    return 1
+  fi
+}
+
+# Track if any checks failed
+checks_failed=0
+
+# Get push information
+remote="$1"
+url="$2"
+log_info "Pushing to remote: $remote ($url)"
+
+# 1. Check if we're on a protected branch
+current_branch=$(git branch --show-current)
+log_info "Current branch: $current_branch"
+
+protected_branches="main|master|production|release"
+if echo "$current_branch" | grep -qE "$protected_branches"; then
+  log_warning "Pushing to protected branch: $current_branch"
+  log_info "Extra validation will be performed"
+fi
+
+# 2. Run TypeScript type checking
+if [ -f "tsconfig.json" ]; then
+  if ! run_check "TypeScript Check" "npm run check-types" "Verifying TypeScript types across the project"; then
+    checks_failed=$((checks_failed + 1))
+  fi
+else
+  log_warning "No tsconfig.json found, skipping TypeScript checks"
+fi
+
+# 3. Run linting
+if ! run_check "ESLint" "npm run lint" "Running ESLint to check code quality"; then
+  checks_failed=$((checks_failed + 1))
+fi
+
+# 4. Check for build success
+if ! run_check "Build Test" "npm run build" "Testing if the project builds successfully"; then
+  checks_failed=$((checks_failed + 1))
+fi
+
+# 5. Check for uncommitted changes
+if ! git diff --quiet; then
+  log_error "Uncommitted changes detected"
+  log_info "Please commit or stash your changes before pushing"
+  checks_failed=$((checks_failed + 1))
+else
+  log_success "No uncommitted changes"
+fi
+
+# 6. Check for untracked files that might be important
+untracked=$(git ls-files --others --exclude-standard)
+if [ -n "$untracked" ]; then
+  log_warning "Untracked files found:"
+  echo "$untracked" | while read -r file; do
+    echo "  📄 $file"
+  done
+  log_info "Consider adding important files to git or .gitignore"
+fi
+
+# 7. Security scan for secrets
+log_info "Scanning for potential secrets..."
+secret_patterns=(
+  "password\s*[:=]\s*['\"][^'\"]{8,}['\"]"
+  "api[_-]?key\s*[:=]\s*['\"][^'\"]{16,}['\"]"
+  "secret\s*[:=]\s*['\"][^'\"]{8,}['\"]"
+  "token\s*[:=]\s*['\"][^'\"]{16,}['\"]"
+  "[a-zA-Z0-9]{32,}"
+  "sk-[a-zA-Z0-9]{20,}"
+)
+
+for pattern in "${secret_patterns[@]}"; do
+  if git log --oneline -n 20 | xargs git show | grep -iE "$pattern" > /dev/null; then
+    log_warning "Potential secret detected in recent commits: $pattern"
+  fi
+done
+
+# 8. Check commit quality
+log_info "Analyzing recent commits..."
+recent_commits=$(git log --oneline -n 5)
+echo "$recent_commits" | while read -r commit; do
+  echo "  📝 $commit"
+done
+
+# Check for WIP commits
+if echo "$recent_commits" | grep -iE "wip|temp|test|debug|fixme" > /dev/null; then
+  log_warning "Found potential WIP/temporary commits in recent history"
+  log_info "Consider squashing or cleaning up commit history"
+fi
+
+# 9. Family project specific checks
+log_info "Running family project validation..."
+
+# Check for appropriate documentation
+if [ ! -f "README.md" ]; then
+  log_warning "No README.md found. Consider adding project documentation."
+else
+  log_success "README.md present"
+fi
+
+# Check for license
+if [ ! -f "LICENSE" ] && [ ! -f "LICENSE.md" ] && [ ! -f "license.txt" ]; then
+  log_warning "No license file found. Consider adding a license for family project."
+fi
+
+# Check for environment files
+if [ -f ".env" ]; then
+  log_error ".env file should not be committed. Use .env.example instead."
+  checks_failed=$((checks_failed + 1))
+fi
+
+if [ ! -f ".env.example" ]; then
+  log_warning "No .env.example file found. Consider adding environment template."
+fi
+
+# 10. Performance checks for Raspberry Pi deployment
+log_info "Checking Raspberry Pi readiness..."
+
+# Check bundle size (rough estimate)
+if [ -d "node_modules" ]; then
+  node_modules_size=$(du -sh node_modules 2>/dev/null | cut -f1)
+  log_info "Node modules size: $node_modules_size"
+fi
+
+# Check for heavy dependencies that might impact Pi performance
+heavy_deps="puppeteer|playwright|electron|@tensorflow|opencv"
+if grep -E "$heavy_deps" package.json > /dev/null 2>&1; then
+  log_warning "Heavy dependencies detected. Ensure Raspberry Pi can handle the load."
+fi
+
+# 11. Branch protection for main/master
+if echo "$current_branch" | grep -qE "^(main|master)$"; then
+  log_info "🔒 Main branch protection active"
+  
+  # Extra strict checks for main branch
+  if [ $checks_failed -gt 0 ]; then
+    log_error "Cannot push to main branch with failing checks"
+    checks_failed=$((checks_failed + 1))
+  fi
+  
+  # Require clean history
+  if git log --oneline -n 3 | grep -iE "fixup|squash|wip" > /dev/null; then
+    log_error "Clean up commit history before pushing to main"
+    checks_failed=$((checks_failed + 1))
+  fi
+fi
+
+# Final result
+echo "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+if [ $checks_failed -eq 0 ]; then
+  log_success "All pre-push checks passed! 🎉"
+  log_header "Code is ready for the family team! 👨‍👩‍👧‍👦"
+  log_info "Pushing to $remote..."
+  exit 0
+else
+  log_error "$checks_failed check(s) failed"
+  log_header "Please fix the issues before pushing"
+  echo ""
+  log_info "💡 Common fixes:"
+  echo "  • Run 'npm run build' to fix build issues"
+  echo "  • Run 'npm run lint' to fix linting issues"
+  echo "  • Commit any uncommitted changes"
+  echo "  • Clean up commit history if needed"
+  echo "  • Use 'git push --no-verify' to bypass (not recommended)"
+  exit 1
+fi 
