@@ -89,17 +89,9 @@ sensitive_patterns=(
 )
 
 for pattern in "${sensitive_patterns[@]}"; do
-  if [ "$pattern" = "-----BEGIN.*PRIVATE KEY-----" ]; then
-    # Special handling for private key pattern
-    if git diff --cached | grep -E "-----BEGIN.*PRIVATE KEY-----" > /dev/null; then
-      log_error "Potential private key detected"
-      checks_failed=$((checks_failed + 1))
-    fi
-  else
-    if git diff --cached | grep -iE "$pattern" > /dev/null; then
-      log_error "Potential sensitive information detected: $pattern"
-      checks_failed=$((checks_failed + 1))
-    fi
+  if git diff --cached | grep -iE "$pattern" > /dev/null; then
+    log_error "Potential sensitive information detected: $pattern"
+    checks_failed=$((checks_failed + 1))
   fi
 done
 

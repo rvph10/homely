@@ -125,7 +125,7 @@ secret_patterns=(
 )
 
 for pattern in "${secret_patterns[@]}"; do
-  if git log --oneline -n 20 | xargs git show | grep -iE "$pattern" > /dev/null; then
+  if git log --oneline -n 20 | cut -d' ' -f1 | xargs -I {} git show {} 2>/dev/null | grep -iE "$pattern" > /dev/null 2>&1; then
     log_warning "Potential secret detected in recent commits: $pattern"
   fi
 done
