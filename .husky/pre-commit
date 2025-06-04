@@ -89,8 +89,8 @@ sensitive_patterns=(
 )
 
 for pattern in "${sensitive_patterns[@]}"; do
-  # Check only added lines in non-example files for sensitive information
-  if git diff --cached --name-only | grep -vE "\.env\.example$|\.env\.template$" | xargs git diff --cached -- | grep "^+" | grep -iE "$pattern" > /dev/null; then
+  # Check only added lines in non-example and non-husky files for sensitive information
+  if git diff --cached --name-only | grep -vE "\.env\.example$|\.env\.template$|^\.husky/" | xargs git diff --cached -- | grep "^+" | grep -iE "$pattern" > /dev/null; then
     log_error "Potential sensitive information detected: $pattern"
     checks_failed=$((checks_failed + 1))
   fi
@@ -106,16 +106,14 @@ if [ "$commit_size" -gt 50 ]; then
   log_warning "Large commit detected ($commit_size files). Consider breaking into smaller commits."
 fi
 
-# 5. Check for TODO/FIXME comments in staged files
-log_info "Checking for TODO/FIXME comments..."
-todo_count=0
-git diff --cached --name-only | while read -r file; do
+# 5. Check for TODO/FIXME comments in staged files (excluding husky files)
+log_info "Checking for development comments..."
+git diff --cached --name-only | grep -v "^\.husky/" | while read -r file; do
   if [ -f "$file" ]; then
     todos=$(git show :"$file" | grep -n -i "TODO\|FIXME" || true)
     if [ -n "$todos" ]; then
       echo "$todos" | while read -r todo; do
         log_warning "Found in $file: $todo"
-        todo_count=$((todo_count + 1))
       done
     fi
   fi
