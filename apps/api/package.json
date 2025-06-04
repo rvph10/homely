@@ -1,5 +1,6 @@
 {
   "name": "@homely/api",
+  "type": "module",
   "version": "1.0.0",
   "description": "Family management system backend API",
   "main": "dist/index.js",
