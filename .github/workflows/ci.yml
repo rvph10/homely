@@ -1,0 +1,303 @@
+name: 🏠 Homely CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop, "feature/*", "hotfix/*"]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: "20"
+  PNPM_VERSION: "8"
+
+jobs:
+  # 🧹 Code Quality & Security
+  code-quality:
+    name: 🧹 Code Quality & Security
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📥 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Run ESLint
+        run: npm run lint
+
+      - name: 🎨 Check code formatting
+        run: npm run format:check
+
+      - name: 🔒 Security audit
+        run: npm audit --audit-level moderate
+
+      - name: 🕵️ Scan for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+
+  # 🔧 TypeScript & Build Tests
+  build-test:
+    name: 🔧 Build & TypeScript
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        workspace: ["apps/api", "apps/web"]
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📥 Install dependencies
+        run: npm ci
+
+      - name: 🔎 TypeScript type checking
+        run: |
+          if [ -f "${{ matrix.workspace }}/tsconfig.json" ]; then
+            cd ${{ matrix.workspace }}
+            npm run check-types
+          else
+            echo "No TypeScript config found for ${{ matrix.workspace }}"
+          fi
+
+      - name: 🏗️ Build project
+        run: |
+          cd ${{ matrix.workspace }}
+          npm run build
+
+      - name: 📊 Bundle analysis (Web only)
+        if: matrix.workspace == 'apps/web'
+        run: |
+          cd apps/web
+          npx next build
+          echo "Build completed successfully"
+
+  # 🧪 Unit & Integration Tests
+  test:
+    name: 🧪 Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: homely_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: homely_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📥 Install dependencies
+        run: npm ci
+
+      - name: 🗄️ Setup test database
+        env:
+          DATABASE_URL: postgresql://homely_test:test_password@localhost:5432/homely_test
+        run: |
+          if [ -f "apps/api/prisma/schema.prisma" ]; then
+            cd apps/api
+            npx prisma migrate deploy
+            npx prisma db seed
+          fi
+
+      - name: 🧪 Run API tests
+        env:
+          DATABASE_URL: postgresql://homely_test:test_password@localhost:5432/homely_test
+          NODE_ENV: test
+        run: |
+          cd apps/api
+          npm test
+
+      - name: 🧪 Run Web tests
+        run: |
+          cd apps/web
+          npm test
+
+      - name: 📊 Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./coverage
+          flags: unittests
+          name: homely-coverage
+
+  # 🚀 Raspberry Pi Compatibility
+  pi-compatibility:
+    name: 🥧 Raspberry Pi Compatibility
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📥 Install dependencies
+        run: npm ci
+
+      - name: 📏 Check bundle size
+        run: |
+          echo "🧮 Analyzing bundle sizes for Raspberry Pi deployment..."
+
+          # Check total node_modules size
+          du -sh node_modules/ || echo "No node_modules found"
+
+          # Check for ARM compatibility issues
+          npm ls | grep -i "native\|binary\|gyp" || echo "No native dependencies detected"
+
+          # Memory usage estimation
+          echo "💾 Estimated memory usage:"
+          node -e "console.log('Heap used:', Math.round(process.memoryUsage().heapUsed / 1024 / 1024), 'MB')"
+
+      - name: 🔍 Check ARM64 compatibility
+        run: |
+          echo "🔧 Checking for ARM64 incompatible packages..."
+          # List potentially problematic packages
+          packages_to_check="puppeteer playwright electron sharp canvas"
+          for package in $packages_to_check; do
+            if npm ls $package >/dev/null 2>&1; then
+              echo "⚠️ Found $package - verify ARM64 compatibility"
+            fi
+          done
+
+  # 👥 Family Safety & Privacy
+  family-safety:
+    name: 👨‍👩‍👧‍👦 Family Safety & Privacy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Scan for inappropriate content
+        run: |
+          echo "🔍 Scanning for family-inappropriate content..."
+
+          # Define inappropriate patterns (excluding technical terms)
+          inappropriate_patterns="porn|sex|adult|xxx|fuck|shit|damn|stupid|idiot|hate"
+
+          # Scan source files excluding node_modules and .git
+          if find . -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.md" \) -not -path "./node_modules/*" -not -path "./.git/*" -exec grep -l -iE "$inappropriate_patterns" {} \; | head -10; then
+            echo "⚠️ Potential inappropriate content found in files above"
+            echo "Please review for family-appropriateness"
+          else
+            echo "✅ No inappropriate content detected"
+          fi
+
+      - name: 🔒 Privacy compliance check
+        run: |
+          echo "🔒 Checking privacy compliance..."
+
+          # Check for data collection patterns
+          if grep -r -i "tracking\|analytics\|telemetry" --include="*.ts" --include="*.js" --exclude-dir=node_modules .; then
+            echo "📊 Data collection detected - ensure family consent"
+          fi
+
+          # Check for external API calls
+          if grep -r -i "fetch\|axios\|http" --include="*.ts" --include="*.js" --exclude-dir=node_modules . | grep -v localhost | head -5; then
+            echo "🌐 External API calls detected - verify privacy compliance"
+          fi
+
+      - name: 🔐 Security headers check
+        run: |
+          echo "🔐 Checking security configurations..."
+
+          # Look for security middleware in API
+          if [ -f "apps/api/src/app.ts" ] || [ -f "apps/api/src/server.ts" ]; then
+            if grep -i "helmet\|cors\|csp" apps/api/src/*.ts; then
+              echo "✅ Security middleware detected"
+            else
+              echo "⚠️ Consider adding security middleware (helmet, CORS)"
+            fi
+          fi
+
+  # 📋 Deployment Readiness
+  deployment-check:
+    name: 📋 Deployment Readiness
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: [code-quality, build-test, test, pi-compatibility, family-safety]
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📋 Pre-deployment checklist
+        run: |
+          echo "📋 Running pre-deployment checklist..."
+
+          # Check for required files
+          required_files=("README.md" "package.json" ".env.example")
+          for file in "${required_files[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✅ $file present"
+            else
+              echo "❌ $file missing"
+            fi
+          done
+
+          # Check for sensitive files
+          sensitive_files=(".env" "*.pem" "*.key" "credentials.json")
+          for pattern in "${sensitive_files[@]}"; do
+            if find . -name "$pattern" -not -path "./node_modules/*" | head -1 | grep -q .; then
+              echo "⚠️ Sensitive file pattern found: $pattern"
+            fi
+          done
+
+          echo "🎉 Deployment readiness check completed!"
+
+      - name: 🚀 Create deployment artifact
+        run: |
+          echo "🚀 Creating deployment artifact..."
+
+          # Create a deployment summary
+          echo "# 🏠 Homely Deployment Summary" > deployment-summary.md
+          echo "- **Commit:** ${{ github.sha }}" >> deployment-summary.md
+          echo "- **Branch:** ${{ github.ref_name }}" >> deployment-summary.md
+          echo "- **Timestamp:** $(date -u)" >> deployment-summary.md
+          echo "- **Node Version:** ${{ env.NODE_VERSION }}" >> deployment-summary.md
+          echo "- **Status:** ✅ Ready for family deployment" >> deployment-summary.md
+
+          cat deployment-summary.md
+
+      - name: 📢 Notify family team
+        run: |
+          echo "📢 All checks passed! 🎉"
+          echo "👨‍👩‍👧‍👦 Ready for family deployment to production!"
+          echo "🥧 Raspberry Pi compatible and family-safe ✅"

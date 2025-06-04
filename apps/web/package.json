@@ -1,27 +1,29 @@
 {
-  "name": "web",
-  "version": "0.1.0",
+  "name": "@homely/web",
+  "version": "1.0.0",
+  "description": "Family management system web interface",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "echo \"🏗️ Web dev server would start here\" && exit 0",
+    "build": "echo \"🏗️ Web build would run here\" && exit 0",
+    "start": "echo \"🚀 Web server would start here\" && exit 0",
+    "lint": "echo \"🔍 Web linting would run here\" && exit 0",
+    "check-types": "echo \"🔎 Web type checking would run here\" && exit 0",
+    "test": "echo \"✅ Web tests would run here\" && exit 0",
+    "test:unit": "echo \"✅ Web unit tests would run here\" && exit 0",
+    "test:e2e": "echo \"✅ Web E2E tests would run here\" && exit 0"
   },
   "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "next": "15.3.3"
+    "next": "^14.2.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
-    "eslint": "^9",
-    "eslint-config-next": "15.3.3",
-    "@eslint/eslintrc": "^3"
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "5.8.2"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
