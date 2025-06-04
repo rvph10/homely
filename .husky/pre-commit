@@ -85,11 +85,12 @@ sensitive_patterns=(
   "api_key\s*=\s*['\"][^'\"]+['\"]"
   "secret\s*=\s*['\"][^'\"]+['\"]"
   "token\s*=\s*['\"][^'\"]+['\"]"
-  "-----BEGIN.*PRIVATE KEY-----"
+  "BEGIN.*PRIVATE.KEY"
 )
 
 for pattern in "${sensitive_patterns[@]}"; do
-  if git diff --cached | grep -iE "$pattern" > /dev/null; then
+  # Check only added lines in non-example files for sensitive information
+  if git diff --cached --name-only | grep -vE "\.env\.example$|\.env\.template$" | xargs git diff --cached -- | grep "^+" | grep -iE "$pattern" > /dev/null; then
     log_error "Potential sensitive information detected: $pattern"
     checks_failed=$((checks_failed + 1))
   fi
