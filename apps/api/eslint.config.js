@@ -28,14 +28,12 @@ export default [
       "@typescript-eslint": typescript,
     },
     rules: {
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        { argsIgnorePattern: "^_" },
-      ],
+      "@typescript-eslint/no-unused-vars": "off",
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "warn",
       "prefer-const": "error",
       "no-var": "error",
-      "no-console": "warn",
+      "no-console": "off", // Allow console in API server
       "no-undef": "error",
     },
   },
