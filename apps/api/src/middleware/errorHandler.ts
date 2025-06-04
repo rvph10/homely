@@ -16,7 +16,7 @@ export const errorHandler = (
   error: CustomError,
   req: Request,
   res: Response,
-  next: NextFunction,
+  _next: NextFunction,
 ): void => {
   // Set default error values
   const statusCode = error.statusCode || 500;
